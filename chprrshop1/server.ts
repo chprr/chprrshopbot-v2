@@ -8,7 +8,7 @@ import dotenv from "dotenv";
 // Load environment variables
 dotenv.config();
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 const app = express();
 
 // Enable parsing of JSON bodies with a limit suitable for base64 image receipts
@@ -794,10 +794,56 @@ if (bot) {
     });
   });
 
-  // Start polling
-  bot.start().catch((err) => {
-    console.error("❌ Error running Telegram Bot Polling:", err);
+  // Global error handler for handling updates gracefully without crashing the bot
+  bot.catch((err) => {
+    const ctx = err.ctx;
+    console.error(`Error while handling update ${ctx.update.update_id}:`, err.error);
   });
+
+  // Start polling with retry mechanism on conflict (409) and clean webhook deletion
+  async function startBot() {
+    try {
+      console.log("🧹 Attempting to delete webhook...");
+      await bot!.api.deleteWebhook({ drop_pending_updates: true }).catch(() => {});
+      
+      console.log("🚀 Starting bot polling...");
+      await bot!.start({
+        drop_pending_updates: true,
+        allowed_updates: ["message", "callback_query"],
+      });
+      console.log("✅ Bot polling started successfully");
+    } catch (err: any) {
+      const errMsg = err.message || "";
+      const errDesc = err.description || "";
+      if (errDesc.includes("Conflict") || errMsg.includes("Conflict") || errDesc.includes("409") || errMsg.includes("409")) {
+        console.warn("⚠️ Bot polling conflict detected (409). Another instance is likely running. Retrying in 4 seconds...");
+        setTimeout(startBot, 4000);
+      } else {
+        console.error("❌ Error running Telegram Bot Polling:", err);
+        console.log("🔄 Retrying bot start in 10 seconds...");
+        setTimeout(startBot, 10000);
+      }
+    }
+  }
+
+  startBot();
+
+  // Graceful shutdown on process termination
+  const shutdown = async (signal: string) => {
+    console.log(`Received ${signal}. Stopping bot polling...`);
+    try {
+      if (bot) {
+        await bot.stop();
+        console.log("Bot polling stopped gracefully.");
+      }
+    } catch (e) {
+      console.error("Error stopping bot:", e);
+    }
+    process.exit(0);
+  };
+
+  process.once("SIGINT", () => shutdown("SIGINT"));
+  process.once("SIGTERM", () => shutdown("SIGTERM"));
 }
 
 // --- API ENDPOINTS ---
