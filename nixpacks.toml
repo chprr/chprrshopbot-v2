@@ -1,0 +1,11 @@
+# nixpacks.toml
+# Force Nixpacks to use the Node.js builder and execute standard scripts
+
+[providers]
+node = "node"
+
+[phases.build]
+cmds = ["npm run build"]
+
+[start]
+cmd = "npm run start"

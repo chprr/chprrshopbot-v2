@@ -1,0 +1,6 @@
+{
+  "name": "chprrshop",
+  "description": "Premium Telegram Stars and Premium Subscription Shop with integrated bot, checkout system, and receipt verification.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
